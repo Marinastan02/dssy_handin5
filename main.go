@@ -61,7 +61,7 @@ func Generate(filename string, password string) string {
 		return ""
 	}
 
-	// Step 5: Return the public key as a string
+	// Return the public key as a string
 	publicKey := fmt.Sprintf("N: %s, E: %s", rsaKey.N.String(), rsaKey.E.String())
 	return publicKey
 }
