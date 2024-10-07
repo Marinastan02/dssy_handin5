@@ -38,6 +38,32 @@ func loadRSAKeyFromFile(filename string) (*rsa_mine.RSA, error) {
 	return &rsaKey, err
 }
 
+func Generate(filename string, password string) (string, error) {
+	//Generate RSA key pair
+	k := 1024 // Bit length for modulus
+	rsaKey, err := rsa_mine.KeyGen(k)
+	if err != nil {
+		return "", fmt.Errorf("error generating RSA key: %v", err)
+	}
+
+	//Derive AES key from password
+	passwordHash := sha256.Sum256([]byte(password))
+	aesKey := passwordHash[:16] // Take first 16 bytes for AES key
+
+	// Extract private key bytes
+	rsaKeyData := rsaKey.D.Bytes()
+
+	//Encrypt the private key with AES
+	err = aes_mine.EncryptToFile(aesKey, rsaKeyData, filename)
+	if err != nil {
+		return "", fmt.Errorf("error encrypting RSA key: %v", err)
+	}
+
+	//Return the public key as a string
+	publicKey := fmt.Sprintf("N: %s, E: %s", rsaKey.N.String(), rsaKey.E.String())
+	return publicKey, nil
+}
+
 func randomIntLessThan(n *big.Int) (*big.Int, error) {
 	return rand.Int(rand.Reader, n)
 }
