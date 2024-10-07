@@ -66,6 +66,35 @@ func Generate(filename string, password string) string {
 	return publicKey
 }
 
+func Sign(filename string, password string, msg []byte) []byte {
+	//Derive AES key from password
+	passwordHash := sha256.Sum256([]byte(password))
+	aesKey := passwordHash[:16] //first 16 bytes for AES key
+
+	//Decrypt the private RSA key from the file
+	rsaKeyData, err := aes_mine.DecryptFromFile(aesKey, filename)
+	if err != nil {
+		fmt.Println("Error decrypting RSA key: ", err)
+		return nil
+	}
+
+	//Reconstruct RSA private key from decrypted data
+	var rsaKey rsa_mine.RSA
+	rsaKey.D.SetBytes(rsaKeyData)
+
+	//Hashing the message
+	msgHash := sha256.Sum256(msg)
+
+	signature, err := rsaKey.Decrypt(new(big.Int).SetBytes(msgHash[:]))
+	if err != nil {
+		fmt.Println("Error signing message: ", err)
+		return nil
+	}
+
+	//signature is of type []byte
+	return signature.Bytes()
+}
+
 func randomIntLessThan(n *big.Int) (*big.Int, error) {
 	return rand.Int(rand.Reader, n)
 }
