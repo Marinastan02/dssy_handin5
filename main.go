@@ -100,6 +100,16 @@ func randomIntLessThan(n *big.Int) (*big.Int, error) {
 }
 
 func main() {
+	filename := "encrypted_rsa_key.gob"
+	password := "my_secure_password"
+
+	publicKey := Generate(filename, password)
+	if publicKey == "" {
+		fmt.Println("Key generation failed")
+		return
+	}
+	fmt.Println("Public Key generated:", publicKey)
+
 	k := 1024 // Bit length for modulus
 	rsaKey, err := rsa_mine.KeyGen(k)
 	if err != nil {
