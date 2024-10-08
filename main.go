@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
@@ -67,32 +69,44 @@ func Generate(filename string, password string) string {
 }
 
 func Sign(filename string, password string, msg []byte) []byte {
-	//Derive AES key from password
+	// Derive AES key from password
 	passwordHash := sha256.Sum256([]byte(password))
-	aesKey := passwordHash[:16] //first 16 bytes for AES key
+	aesKey := passwordHash[:16] // First 16 bytes for AES key
 
-	//Decrypt the private RSA key from the file
+	// Decrypt the private RSA key from the file
 	rsaKeyData, err := aes_mine.DecryptFromFile(aesKey, filename)
 	if err != nil {
 		fmt.Println("Error decrypting RSA key: ", err)
 		return nil
 	}
 
-	//Reconstruct RSA private key from decrypted data
+	// Reconstruct RSA private key from decrypted data
 	var rsaKey rsa_mine.RSA
-	rsaKey.D.SetBytes(rsaKeyData)
+	rsaKey.D = new(big.Int).SetBytes(rsaKeyData)
 
-	//Hashing the message
+	// Convertibg E from *big.Int to int
+	publicExponent := int(rsaKey.E.Int64())
+
+	privateKey := &rsa.PrivateKey{
+		PublicKey: rsa.PublicKey{
+			N: rsaKey.N,
+			E: publicExponent,
+		},
+		D: rsaKey.D,
+	}
+
+	// Hashing the message
 	msgHash := sha256.Sum256(msg)
 
-	signature, err := rsaKey.Decrypt(new(big.Int).SetBytes(msgHash[:]))
+	// Signing the message using PKCS#1 v1.5 padding
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, msgHash[:])
 	if err != nil {
 		fmt.Println("Error signing message: ", err)
 		return nil
 	}
 
-	//signature is of type []byte
-	return signature.Bytes()
+	// signature is of type []byte
+	return signature
 }
 
 func randomIntLessThan(n *big.Int) (*big.Int, error) {
