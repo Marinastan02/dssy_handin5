@@ -1,12 +1,15 @@
 package main
 
 import (
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/gob"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"main/aes_mine"
 	"main/rsa_mine"
 	"math/big"
@@ -14,6 +17,8 @@ import (
 	"strconv"
 	"time"
 )
+
+type Signature []byte
 
 func saveRSAKeyToFile(rsaKey *rsa_mine.RSA, filename string) error {
 	file, err := os.Create(filename)
@@ -41,72 +46,83 @@ func loadRSAKeyFromFile(filename string) (*rsa_mine.RSA, error) {
 }
 
 func Generate(filename string, password string) string {
-	// Generate RSA key pair
-	k := 1024 // Bit length for modulus
-	rsaKey, err := rsa_mine.KeyGen(k)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		fmt.Println("Error generating RSA key:", err)
-		return ""
+		log.Fatal(err)
 	}
 
-	//Derive AES key from password
-	passwordHash := sha256.Sum256([]byte(password))
-	aesKey := passwordHash[:16] // Take first 16 bytes for AES key
+	// Convert the rsa.PrivateKey to PEM format
+	privASN1 := x509.MarshalPKCS1PrivateKey(privateKey)
 
-	// Extract private key bytes
-	rsaKeyData := rsaKey.D.Bytes()
+	privBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privASN1,
+	})
 
-	// Encrypt the private key with AES
-	err = aes_mine.EncryptToFile(aesKey, rsaKeyData, filename)
+	// Encrypt the PEM data
+	encryptedPEM, err := x509.EncryptPEMBlock(rand.Reader, "RSA PRIVATE KEY", privBytes, []byte(password), x509.PEMCipherAES256)
 	if err != nil {
-		fmt.Println("Error encrypting RSA key:", err)
-		return ""
+		log.Fatal(err)
 	}
 
-	// Return the public key as a string
-	publicKey := fmt.Sprintf("N: %s, E: %s", rsaKey.N.String(), rsaKey.E.String())
-	return publicKey
+	// Save the encrypted PEM data to a file
+	err = ioutil.WriteFile(filename, pem.EncodeToMemory(encryptedPEM), 0600)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Return the public key
+	pubASN1, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pubBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: pubASN1,
+	})
+
+	return string(pubBytes)
 }
 
-func Sign(filename string, password string, msg []byte) []byte {
-	// Derive AES key from password
-	passwordHash := sha256.Sum256([]byte(password))
-	aesKey := passwordHash[:16] // First 16 bytes for AES key
-
-	// Decrypt the private RSA key from the file
-	rsaKeyData, err := aes_mine.DecryptFromFile(aesKey, filename)
+func Sign(filename string, password string, msg []byte) (*big.Int, error) {
+	// Read the encrypted PEM data from the file
+	encryptedPEM, err := ioutil.ReadFile(filename)
 	if err != nil {
-		fmt.Println("Error decrypting RSA key: ", err)
-		return nil
+		log.Fatal(err)
 	}
 
-	// Reconstruct RSA private key from decrypted data
-	var rsaKey rsa_mine.RSA
-	rsaKey.D = new(big.Int).SetBytes(rsaKeyData)
-
-	// Convertibg E from *big.Int to int
-	publicExponent := int(rsaKey.E.Int64())
-
-	privateKey := &rsa.PrivateKey{
-		PublicKey: rsa.PublicKey{
-			N: rsaKey.N,
-			E: publicExponent,
-		},
-		D: rsaKey.D,
+	// Decrypt the PEM data
+	block, _ := pem.Decode(encryptedPEM)
+	if block == nil || block.Type != "RSA PRIVATE KEY" {
+		log.Fatal("failed to decode PEM block containing private key")
 	}
 
-	// Hashing the message
-	msgHash := sha256.Sum256(msg)
-
-	// Signing the message using PKCS#1 v1.5 padding
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, msgHash[:])
+	privBytes, err := x509.DecryptPEMBlock(block, []byte(password))
 	if err != nil {
-		fmt.Println("Error signing message: ", err)
-		return nil
+		log.Fatal(err)
 	}
 
-	// signature is of type []byte
-	return signature
+	// Parse the decrypted PEM data to an rsa.PrivateKey
+	privateKey, err := x509.ParsePKCS1PrivateKey(privBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create an instance of your custom RSA type
+	rsaKey := &rsa_mine.RSA{
+		N: privateKey.N,
+		E: big.NewInt(int64(privateKey.E)),
+		D: privateKey.D,
+	}
+
+	// Sign the message using your custom Sign method
+	signature, err := rsaKey.Sign(msg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return signature, nil
 }
 
 func randomIntLessThan(n *big.Int) (*big.Int, error) {
@@ -114,6 +130,7 @@ func randomIntLessThan(n *big.Int) (*big.Int, error) {
 }
 
 func main() {
+
 	filename := "encrypted_rsa_key.gob"
 	password := "my_secure_password"
 
@@ -237,16 +254,10 @@ func main() {
 	message := []byte("This is a test message for signing.")
 
 	start := time.Now()
-	signature, err := rsaKey.Sign(message)
-	if err != nil {
-		fmt.Println("Signing failed:", err)
-		return
-	}
-	fmt.Printf("Signature generated: %x\n", signature)
-	fmt.Printf("Signing took %v nanoseconds\n", time.Since(start).Nanoseconds())
-
-	start = time.Now()
-	valid, err := rsaKey.Verify(message, signature)
+	signature, err := Sign("encrypted_rsa_key.gob", "mysecretaeskeywith192bit", message)
+	signatureBytes := signature.Bytes()                   // Convert signature to byte slice
+	signatureInt := new(big.Int).SetBytes(signatureBytes) // Pass the byte slice value of the signature
+	valid, err := rsaKey.Verify(message, signatureInt)    // Verify the signature
 	if err != nil {
 		fmt.Println("Verification failed:", err)
 		return
@@ -322,4 +333,5 @@ func main() {
 	} else {
 		fmt.Println("Signing without hashing is more efficient.")
 	}
+
 }
