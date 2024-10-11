@@ -29,3 +29,9 @@ Question 2: Describe clearly what measure have been taken.
 The Answer: 
     In this solution, we implemented several measures that could make it quite difficult for an attacker to bruteforce the password. The private key is encrypted using AES, with a key derived from the password through PBKDF2. To slow down password guessing, we have set PBKDF2 to use 500,000 iterations, making each attempt computationally expensive. What is more, we are using a 
     strong hash function, SHA-512, and a random salt to ensure that even if the same password is used elsewhere, the resulting encrypted key is unique.
+
+
+Question 3: Explain why the system was designed the way it was and, in particular, argue why the system achieves the desired security properties.
+
+The Answer:
+    The system was built to make it very challenging for anyone to decrypt the RSA private key without the correct password. By using PBKDF2 with many iterations, each password guess takes more time, making brute force attempts inefficient. A random salt ensures that even if two users have the same password, their encrypted keys will be different. AES encryption is then used to securely protect the private key. Overall, these elements work together to strengthen the system against attacks and protect the key’s confidentiality.
