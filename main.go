@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"testing"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -148,6 +149,25 @@ func Sign(filename string, password string, msg []byte) Signature {
 	return Signature(signature)
 }
 
+func TestGenerate(t *testing.T) {
+	password := "your_password"
+	pubKey := Generate("encrypted_rsa_key.pem", password)
+
+	if pubKey == "" {
+		t.Errorf("Failed to generate public key")
+	}
+}
+
+func TestSign(t *testing.T) {
+	password := "your_password"
+	msg := []byte("Hello, world!")
+	sig := Sign("encrypted_rsa_key.pem", password, msg)
+
+	if len(sig) == 0 {
+		t.Errorf("Failed to generate signature")
+	}
+}
+
 func main() {
 	// Example usage
 	pubKey := Generate("encrypted_rsa_key.pem", "your_password")
@@ -156,4 +176,7 @@ func main() {
 	msg := []byte("Hello, world!")
 	sig := Sign("encrypted_rsa_key.pem", "your_password", msg)
 	fmt.Printf("Signature: %x\n", sig)
+	// Manually running tests
+	TestGenerate(&testing.T{})
+	TestSign(&testing.T{})
 }
