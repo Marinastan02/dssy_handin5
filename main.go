@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -22,7 +23,8 @@ type Signature []byte
 // deriveKey generates a key from the password using PBKDF2
 
 func deriveKey(password string, salt []byte) []byte {
-	return pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
+	// Use 500,000 iterations
+	return pbkdf2.Key([]byte(password), salt, 500000, 32, sha512.New)
 }
 
 // encryptPrivateKey encrypts the private key using AES with the password
