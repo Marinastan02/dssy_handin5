@@ -20,6 +20,7 @@ Question 4: Test the system and describe how it was tested.
 The Answer:
     TestGenerate - This function is testing the Generate function which generates a public and secret key, encrypts the private key, and saves it to a file. The test checks if the Generate function returns a non-empty string (which should be the public key). If the returned string is empty, the test fails with an error message "Failed to generate public key".
     TestSign - This function is testing the Sign function which reads the encrypted private key, decrypts it, and signs a message. The test checks if the Sign function returns a non-empty Signature. If the returned Signature is empty, the test fails with an error message "Failed to generate signature".
+    TestSign2 - This function is testing the Sign function whith a wrong passowrd - which gives an error as it is supposed to.
 
 Question 5: Describe how your TA can run the system and how to run the test.
 

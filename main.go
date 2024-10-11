@@ -168,6 +168,16 @@ func TestSign(t *testing.T) {
 	}
 }
 
+func TestSign2(t *testing.T) {
+	password := "your_password_wrong"
+	msg := []byte("Hello, world!")
+	sig := Sign("encrypted_rsa_key.pem", password, msg)
+
+	if len(sig) == 0 {
+		t.Errorf("Failed to generate signature")
+	}
+}
+
 func main() {
 	// Example usage
 	pubKey := Generate("encrypted_rsa_key.pem", "your_password")
@@ -179,4 +189,5 @@ func main() {
 	// Manually running tests
 	TestGenerate(&testing.T{})
 	TestSign(&testing.T{})
+	TestSign2(&testing.T{})
 }
